@@ -32,10 +32,7 @@ class Particle:
         self.solpos.append(np.copy(self.position)) 
         self.solvel.append(np.copy(self.velocity)) 
         self.solvel_mag.append(np.linalg.norm(np.copy(self.velocity))) 
-        
 
-    
-    
     def check_coll(self, particle):
         """Check if there is a collision with another particle."""
         
@@ -131,8 +128,8 @@ particle_number = 100
 boxsize = 200.
 
 # You need a larger tfin and stepnumber to get the equilibrium state. But the computation takes more time.
-tfin = 10
-stepnumber = 150
+tfin = 100
+stepnumber = 1500
 
 timestep = tfin/stepnumber
 
@@ -217,9 +214,7 @@ slider = Slider(slider_ax,      # the axes object containing the slider
 
 def update(time):
     i = int(np.rint(time/timestep))
-    
-    #ax.set_title('Energy =' + str(Energy[i]))
-    
+
     # Draw Particles as circles
     for j in range(particle_number):
         circle[j].center = particle_list[j].solpos[i][0], particle_list[j].solpos[i][1]
@@ -233,6 +228,7 @@ def update(time):
     
     # Compute 2d Boltzmann distribution
     E = total_Energy(particle_list, i)
+    ax.set_title('Energy =' + str(E))
     Average_E = E/len(particle_list) 
     k = 1.38064852e-23
     T = 2*Average_E/(2*k)
