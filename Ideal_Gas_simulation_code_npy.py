@@ -3,12 +3,13 @@ import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
 
 np.random.seed(3)
+g_accel = -2.23
 
 #total energy should be constant for any time index
-def total_Energy(particles, enable_g=False):
+def total_Energy(particles):
     # mass_1 radius_1 position_2 velocity_2
     if enable_g:
-        g = np.array([0, -1.0])
+        g = np.array([0, g_accel])
         E_k = (0.5 * particles[:, 0] * np.linalg.norm(particles[:, [4, 5]], axis=1) ** 2).sum()
         E_p = (-particles[:, 0] * g[1] * particles[:, 3]).sum()
         return E_k + E_p
@@ -85,10 +86,10 @@ def compute_coll_npy(particles, step, look2future=False):
 
     return call_again
 
-def compute_step_npy(particles, step, enable_g=False):
+def compute_step_npy(particles, step):
     # mass_1 radius_1 position_2 velocity_2
     if enable_g:
-        g = np.array([0, -1.])
+        g = np.array([0, g_accel])
         particles[:, 2:4] += step * particles[:, 4:6] + 0.5 * g * step ** 2
         particles[:, 4:6] += step * g
     else:
@@ -151,10 +152,11 @@ def update(time):
 
 particle_number = 250
 boxsize = 200.
+enable_g = False
 
 # You need a larger tfin and stepnumber to get the equilibrium state. But the computation takes more time.
-tfin = 100
-stepnumber = 1500
+tfin = 200
+stepnumber = 3000
 timestep = tfin/stepnumber
 particle_list_npy = init_list_random_npy(particle_number, radius = 2, mass = 1, boxsize = 200)
 particle_number = len(particle_list_npy)
@@ -194,6 +196,14 @@ circle = [None]*particle_number
 for i in range(particle_number):
     circle[i] = plt.Circle((history[0][i, 2], history[0][i, 3]), history[0][i, 1], ec="black", lw=1.5, zorder=20)
     ax.add_patch(circle[i])
+
+# history
+for i in range(len(history)):
+    # mass_1 radius_1 position_2 velocity_2
+    height = history[i][:, 3]
+    E_k = 0.5 * history[i][:, 0] * np.linalg.norm(history[i][:, [4, 5]], axis=1) ** 2
+    Grad = np.corrcoef(height, E_k)[0, 1]
+    print(Grad)
 
 # Graph Particles speed histogram
 vel_mod = np.linalg.norm(history[0][:, [4, 5]], axis=1)
