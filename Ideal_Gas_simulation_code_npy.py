@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
+from matplotlib import cm
 
 np.random.seed(3)
 g_accel = -2.23
@@ -125,15 +126,20 @@ def init_list_random_npy(N, radius, mass, boxsize):
 
 def update(time):
     i = int(np.rint(time/timestep))
+    vel_mod = np.linalg.norm(history[i][:, [4, 5]], axis=1)
+    vel_color = np.clip(vel_mod/50, 0, 0.9)
 
     # Draw Particles as circles
     for j in range(particle_number):
         # mass_1 radius_1 position_2 velocity_2
         circle[j].center = tuple(history[i][j, [2, 3]].tolist())
+        circle[j].set_color(cm.hot(vel_color[j]))
     hist.clear()
     
     # Graph Particles speed histogram
-    vel_mod = np.linalg.norm(history[i][:, [4, 5]], axis=1)
+    if enable_g:
+        vel_mod = vel_mod[vel_mod < np.quantile(vel_mod, q=0.9)]
+
     hist.hist(vel_mod, bins=30, density=True, label="Simulation Data")
     hist.set_xlabel("Speed")
     hist.set_ylabel("Frecuency Density")
@@ -155,8 +161,8 @@ boxsize = 200.
 enable_g = False
 
 # You need a larger tfin and stepnumber to get the equilibrium state. But the computation takes more time.
-tfin = 200
-stepnumber = 3000
+tfin = 300
+stepnumber = 6000
 timestep = tfin/stepnumber
 particle_list_npy = init_list_random_npy(particle_number, radius = 2, mass = 1, boxsize = 200)
 particle_number = len(particle_list_npy)
@@ -194,7 +200,7 @@ ax.set_ylim([0,boxsize])
 # Draw Particles as circles
 circle = [None]*particle_number
 for i in range(particle_number):
-    circle[i] = plt.Circle((history[0][i, 2], history[0][i, 3]), history[0][i, 1], ec="black", lw=1.5, zorder=20)
+    circle[i] = plt.Circle((history[0][i, 2], history[0][i, 3]), history[0][i, 1], ec="black", lw=1.5, zorder=20, color='r')
     ax.add_patch(circle[i])
 
 # history
