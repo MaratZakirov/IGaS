@@ -5,8 +5,8 @@ from matplotlib import cm
 import pandas as pd
 
 np.random.seed(3)
-g_accel = -0.1
-enable_g = False
+g_accel = -0.5
+enable_g = True
 timestep = 0.05
 
 #total energy should be constant for any time index
@@ -25,8 +25,9 @@ def total_Energy(particles):
 # Visualization of the solution with matplotlib. It use a slider to change the time
 # Compute 2d Boltzmann distribution
 
-def update(time):
-    i = int(np.rint(time/timestep))
+def update(i):
+    #i = int(np.rint(time/timestep))
+    i = int(np.rint(i))
     vel_mod = np.linalg.norm(history[i][:, [4, 5]], axis=1)
     vel_color = np.clip(vel_mod/15, 0, 0.9)
 
@@ -35,18 +36,8 @@ def update(time):
         # mass_1 radius_1 position_2 velocity_2
         circle[j].center = tuple(history[i][j, [2, 3]].tolist())
         circle[j].set_color(cm.hot(vel_color[j]))
-        if vel_mod[j] > 14.0:
-            circle[j].set_radius(5.0)
-            circle[j].set_color('green')
-            print('Position:', vel_mod[j], history[i][j, [2, 3]])
-        else:
-            circle[j].set_radius(2.0)
 
     hist.clear()
-
-    # Graph Particles speed histogram
-    print('Vel:', vel_mod.max())
-
     hist.hist(vel_mod, bins=30, density=True, label="Simulation Data")
     hist.set_xlabel('Speed')
     hist.set_ylabel('Frecuency Density')
@@ -71,8 +62,17 @@ def update(time):
 history = pd.read_csv('simulation.csv', sep='\t')
 particle_number = history['pnum'].max() + 1
 tfin = history['t'].max()
-boxsize = (int(round(history['x'].max()) + 1), int(round(history['y'].max()) + 1))
-history = history[['m', 'r', 'x', 'y', 'vx', 'vy']].values.reshape(-1, particle_number, 6)
+boxsize = (int(round(history['x'].quantile(q=0.999)) + 1), int(round(history['y'].quantile(q=0.999)) + 1))
+history = history[['m', 'r', 'x', 'y', 'vx', 'vy', 'col']].values.reshape(-1, particle_number, 7)
+
+# clculate main statistics
+hstat = history[len(history)//2:]
+speed_stat = np.linalg.norm(hstat[..., [4, 5]], axis=2)
+height_stat = hstat[..., 3]
+print('Main C:\n', np.corrcoef(height_stat.reshape(-1), speed_stat.reshape(-1)))
+
+plt.hist(speed_stat.reshape(-1), bins=100)
+plt.show()
 
 E = total_Energy(history[0])
 Average_E = E/len(history[0])
@@ -95,13 +95,14 @@ ax.axis('equal')
 ax.axis([-1, 30, -1, 30])
 ax.xaxis.set_visible(False)
 ax.yaxis.set_visible(False)
-ax.set_xlim([0, boxsize[0]])
-ax.set_ylim([0, boxsize[1]])
+ax.set_xlim([0, 200])#boxsize[0]])
+ax.set_ylim([0, 200])#boxsize[1]])
 
 # Draw Particles as circles
 circle = [None]*particle_number
 for i in range(particle_number):
-    circle[i] = plt.Circle((history[0][i, 2], history[0][i, 3]), history[0][i, 1], ec="black", lw=1.5, zorder=20, color='r')
+    circle[i] = plt.Circle((history[0][i, 2], history[0][i, 3]), np.clip(history[0][i, 1], a_min=0.5, a_max=2.0),
+                           ec="black", lw=1.5, zorder=20, color='r')
     ax.add_patch(circle[i])
 
 # history
@@ -112,7 +113,6 @@ for i in range(len(history)):
     height = history[i][:, 3]
     E_k = 0.5 * history[i][:, 0] * np.linalg.norm(history[i][:, [4, 5]], axis=1) ** 2
     Grad = np.corrcoef(height, E_k)[0, 1]
-    print(Grad, E_k[height >= border].mean(), E_k[height < border].mean())
     grads.append(Grad)
 
 # Graph Particles speed histogram
@@ -125,7 +125,7 @@ slider_ax = plt.axes([0.1, 0.05, 0.8, 0.05])
 slider = Slider(slider_ax,    # the axes object containing the slider
                   't',   # the name of the slider parameter
                   0,    # minimal value of the parameter
-                  tfin,       # maximal value of the parameter
+                  particle_number,       # maximal value of the parameter
                   valinit=0,  # initial value of the parameter
                   color = '#5c05ff'
                  )
