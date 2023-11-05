@@ -4,7 +4,7 @@ from matplotlib.widgets import Slider
 from matplotlib import cm
 
 np.random.seed(3)
-g_accel = -2.23
+g_accel = -0.5
 
 #total energy should be constant for any time index
 def total_Energy(particles):
@@ -110,7 +110,7 @@ def init_list_random_npy(N, radius, mass, boxsize):
     v_mag = np.random.rand(N, 1).astype(np.float64) * 6
     v_ang = np.random.rand(N, 1).astype(np.float64) * 2 * np.pi
     particle_list_npy[:, 4:6] = np.concatenate([v_mag * np.cos(v_ang), v_mag * np.sin(v_ang)], axis=1)
-    particle_list_npy[:, 2:4] = radius + np.random.rand(N, 2)*(boxsize-2*radius)
+    particle_list_npy[:, 2:4] = radius + np.random.rand(N, 2)*(0.8*boxsize-2*radius)
 
     # filter out all particles with collision (2 particles simulteniusly)
     Size = particle_list_npy[:, 1]
@@ -124,10 +124,10 @@ def init_list_random_npy(N, radius, mass, boxsize):
 
 # Compute 2d Boltzmann distribution
 
-def update(time):
-    i = int(np.rint(time/timestep))
+def update(i):
+    i = int(i)
     vel_mod = np.linalg.norm(history[i][:, [4, 5]], axis=1)
-    vel_color = np.clip(vel_mod/50, 0, 0.9)
+    vel_color = np.clip(vel_mod/20, 0, 0.9)
 
     # Draw Particles as circles
     for j in range(particle_number):
@@ -137,13 +137,14 @@ def update(time):
     hist.clear()
     
     # Graph Particles speed histogram
-    if enable_g:
-        vel_mod = vel_mod[vel_mod < np.quantile(vel_mod, q=0.9)]
-
     hist.hist(vel_mod, bins=30, density=True, label="Simulation Data")
     hist.set_xlabel("Speed")
     hist.set_ylabel("Frecuency Density")
-    
+    height = history[i][:, 3]
+    E_k = 0.5 * history[i][:, 0] * np.linalg.norm(history[i][:, [4, 5]], axis=1) ** 2
+    Grad = np.corrcoef(height, E_k)[0, 1]
+    hist.set_title('Corr: %0.5f' % Grad)
+
     # Compute 2d Boltzmann distribution
     E = total_Energy(history[i])
     ax.set_title('Energy =' + str(E))
@@ -156,22 +157,41 @@ def update(time):
     hist.plot(v, fv, label = "Maxwell–Boltzmann distribution")
     hist.legend(loc ="upper right")
 
-particle_number = 250
+# Main parameters are set hwere
+particle_number = 200
 boxsize = 200.
-enable_g = False
-
-# You need a larger tfin and stepnumber to get the equilibrium state. But the computation takes more time.
-tfin = 300
-stepnumber = 6000
-timestep = tfin/stepnumber
-particle_list_npy = init_list_random_npy(particle_number, radius = 2, mass = 1, boxsize = 200)
+enable_g = True
+R = 0.045
+stepnumber = 3000
+timestep = 0.05
+tfin = stepnumber * timestep
+particle_list_npy = init_list_random_npy(particle_number, radius = R, mass = 1, boxsize = 200)
 particle_number = len(particle_list_npy)
 history = []
 
 # Compute simulation (It takes some time if stepnumber and particle_number are large)
 for i in range(stepnumber):
     solve_step_npy(particle_list_npy, timestep, boxsize)
+    if i % 1000 == 0:
+        print('Step %d of simulation' %i)
     history.append(np.copy(particle_list_npy))
+
+# clculate main statistics
+hstat = np.array(history[len(history)//2:])
+speed_stat = np.linalg.norm(hstat[..., [4, 5]], axis=2)
+height_stat = hstat[..., 3]
+print('Main C:\n', np.corrcoef(height_stat.reshape(-1), speed_stat.reshape(-1)))
+E = total_Energy(history[0])
+Average_E = E/len(history[0])
+k = 1.38064852e-23
+T = 2*Average_E/(2*k)
+m = history[0][0, 0]
+v = np.linspace(0,14,120)
+fv = m*np.exp(-m*v**2/(2*T*k))/(2*np.pi*T*k)*2*np.pi*v
+plt.plot(v, fv, label = "Maxwell–Boltzmann distribution")
+plt.legend(loc ="upper right")
+plt.hist(speed_stat.reshape(-1), density=True, bins=10)
+plt.show()
 
 E = total_Energy(history[0])
 Average_E = E/len(history[0])
@@ -200,16 +220,9 @@ ax.set_ylim([0,boxsize])
 # Draw Particles as circles
 circle = [None]*particle_number
 for i in range(particle_number):
-    circle[i] = plt.Circle((history[0][i, 2], history[0][i, 3]), history[0][i, 1], ec="black", lw=1.5, zorder=20, color='r')
+    circle[i] = plt.Circle((history[0][i, 2], history[0][i, 3]), np.clip(history[0][i, 1], a_min=0.5, a_max=2.0),
+                           ec="black", lw=1.5, zorder=20, color='r')
     ax.add_patch(circle[i])
-
-# history
-for i in range(len(history)):
-    # mass_1 radius_1 position_2 velocity_2
-    height = history[i][:, 3]
-    E_k = 0.5 * history[i][:, 0] * np.linalg.norm(history[i][:, [4, 5]], axis=1) ** 2
-    Grad = np.corrcoef(height, E_k)[0, 1]
-    print(Grad)
 
 # Graph Particles speed histogram
 vel_mod = np.linalg.norm(history[0][:, [4, 5]], axis=1)
@@ -217,15 +230,7 @@ hist.hist(vel_mod, bins= 30, density = True, label = "Simulation Data")
 hist.set_xlabel("Speed")
 hist.set_ylabel("Frecuency Density")
 
-
 slider_ax = plt.axes([0.1, 0.05, 0.8, 0.05])
-slider = Slider(slider_ax,    # the axes object containing the slider
-                  't',   # the name of the slider parameter
-                  0,    # minimal value of the parameter
-                  tfin,       # maximal value of the parameter
-                  valinit=0,  # initial value of the parameter
-                  color = '#5c05ff'
-                 )
-
+slider = Slider(slider_ax, 't', 0, len(history)-1, valinit=0, color = '#5c05ff')
 slider.on_changed(update)
 plt.show()
